@@ -42,4 +42,4 @@ nemo_experiments/
 *.ckpt
 
 # Logs
-*.log 
+*.log .env
