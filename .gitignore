@@ -43,3 +43,4 @@ nemo_experiments/
 
 # Logs
 *.log .env
+.env
