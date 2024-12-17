@@ -92,13 +92,25 @@ def direct_llm_response(query: str) -> str:
 def is_singlestore_query(response) -> bool:
     """Check if the guardrails response indicates need for SingleStore"""
     try:
-        # Check if response contains specific indicators from our rails.co rules
-        response_text = response.last_message.content.lower()
-        return "inform using singlestore" in response_text or \
-               "delegate to agent" in response_text
-    except AttributeError:
+        # Print the full response for debugging
+        print("\nNemo Guardrails Full Response:", response)
+        
+        # Get the last message from the response
+        if isinstance(response, dict):
+            response_text = response.get('content', '').lower()
+        else:
+            response_text = response.last_message.content.lower()
+            
+        print("\nNemo Guardrails Response Text:", response_text)
+        is_singlestore = "inform using singlestore" in response_text or "delegate to agent" in response_text
+        print("Is SingleStore Query?:", is_singlestore)
+        
+        return is_singlestore
+    except Exception as e:
         # If we can't access the response content as expected,
-        # default to treating it as a non-SingleStore query
+        # print more debug information
+        print("\nError accessing Nemo Guardrails response:", str(e))
+        print("Response type:", type(response))
         return False
 
 def main():
@@ -127,11 +139,30 @@ def main():
             break
         
         try:
+            print("\nSending query to Nemo Guardrails...")
             # First pass through guardrails
             guardrails_response = rails.generate(messages=[{"role": "user", "content": user_query}])
+            print("\n=== Nemo Guardrails Response Details ===")
+            print("Full Response Object:", guardrails_response)
+            print("Response Type:", type(guardrails_response))
+            if isinstance(guardrails_response, dict):
+                print("Response Keys:", guardrails_response.keys())
+                print("Response Content:", guardrails_response.get('content'))
+            print("=====================================\n")
+            
+            # Extract the actual response content
+            if isinstance(guardrails_response, dict):
+                response_content = guardrails_response
+                # Use the guardrails response directly if it's a refusal
+                if "cannot provide" in response_content.get('content', '').lower() or \
+                   "not able to provide" in response_content.get('content', '').lower():
+                    print("Bot:", response_content['content'])
+                    continue
+            else:
+                response_content = guardrails_response.last_message
             
             # Check if query needs SingleStore
-            if is_singlestore_query(guardrails_response):
+            if is_singlestore_query(response_content):
                 # Update current query for the search function
                 current_query = user_query
                 
