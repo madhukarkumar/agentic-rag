@@ -14,36 +14,42 @@ config = RailsConfig.from_path("nemo-configs/")
 rails = LLMRails(config)
 
 # Global connection and query
-singlestore_conn = None
+singlestore_pool = None
 current_query = ""
 
-def connect_to_singlestore():
-    """Establish connection to SingleStore"""
+def get_db_connection():
+    """Get a connection from the pool"""
+    global singlestore_pool
     try:
-        # Get connection parameters from environment
-        host = os.getenv("SINGLESTORE_HOST")
-        user = os.getenv("SINGLESTORE_USER")
-        password = os.getenv("SINGLESTORE_PASSWORD")
-        database = os.getenv("SINGLESTORE_DATABASE")
+        if singlestore_pool is None:
+            # Get connection parameters from environment
+            host = os.getenv("SINGLESTORE_HOST")
+            user = os.getenv("SINGLESTORE_USER")
+            password = os.getenv("SINGLESTORE_PASSWORD")
+            database = os.getenv("SINGLESTORE_DATABASE")
 
-        # Connect using the working format
-        return s2.connect(host=host,
-                         port=3306,
-                         user=user,
-                         password=password,
-                         database=database)
+            # Create connection pool
+            singlestore_pool = s2.connect(
+                host=host,
+                port=3306,
+                user=user,
+                password=password,
+                database=database,
+                pool_size=5,  # Adjust based on your needs
+                pool_name='singlestore_pool'
+            )
+        return singlestore_pool
     except Exception as e:
         print(f"Error connecting to SingleStore: {e}")
         return None
 
 def search_movies() -> str:
     """Core function to search movies in SingleStore"""
-    global singlestore_conn, current_query
+    global current_query
     
     try:
-        if not singlestore_conn:
-            singlestore_conn = connect_to_singlestore()
-        if not singlestore_conn:
+        conn = get_db_connection()
+        if not conn:
             return "Failed to connect to database"
 
         sql_query = '''
@@ -54,12 +60,12 @@ def search_movies() -> str:
            LIMIT 10
         '''
 
-        cursor = singlestore_conn.cursor()
+        cursor = conn.cursor()
         cursor.execute(sql_query, (current_query, current_query))
         
         # Convert cursor results to numpy array for easier handling
         results = np.array(cursor.fetchall())
-        cursor.close()
+        cursor.close()  # Close cursor but keep connection in pool
 
         if len(results) == 0:
             return "No movie recommendations found for your query."
@@ -71,9 +77,6 @@ def search_movies() -> str:
         return response
             
     except Exception as e:
-        if singlestore_conn:
-            singlestore_conn.close()
-            singlestore_conn = None
         return f"Error getting recommendations: {e}"
 
 def direct_llm_response(query: str) -> str:
@@ -134,8 +137,8 @@ def main():
         
         if user_query.lower() == 'exit':
             print("Goodbye!")
-            if singlestore_conn:
-                singlestore_conn.close()
+            if singlestore_pool:
+                singlestore_pool.close()
             break
         
         try:
