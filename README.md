@@ -99,3 +99,9 @@ http://localhost:8000
 ## Contributing
 
 Feel free to submit issues and enhancement requests!
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+Note: This project includes dependencies that may be licensed under different terms. Please refer to each dependency's documentation for their specific license terms.
