@@ -5,19 +5,56 @@ from nemoguardrails import LLMRails, RailsConfig
 from openai import OpenAI
 from typing import Dict, Any, List, Callable, Tuple
 import numpy as np
+from functools import lru_cache
 
 # Initialize OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    timeout=10.0,  # Reduce default timeout
+    max_retries=2  # Limit retries
+)
 
 # Initialize NeMo Guardrails
 config = RailsConfig.from_path("nemo-configs/")
 rails = LLMRails(config)
 
+# Cache for OpenAI responses
+@lru_cache(maxsize=100)
+def cached_llm_response_sync(query: str) -> str:
+    """Cached version of LLM responses for repeated queries"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": query}
+            ]
+        )
+        return response.choices[0].message.content or "No response generated"
+    except Exception as e:
+        return f"Error getting LLM response: {e}"
+
+async def cached_llm_response(query: str) -> str:
+    """Async wrapper for cached LLM responses"""
+    return cached_llm_response_sync(query)
+
+async def direct_llm_response(query: str) -> str:
+    """Get response directly from LLM for non-SingleStore queries"""
+    return await cached_llm_response(query)
+
+# Cache for guardrails responses
+response_cache = {}
+
+async def get_guardrails_response(query: str) -> dict:
+    """Cached version of guardrails responses"""
+    if query not in response_cache:
+        response_cache[query] = await rails.generate_async(messages=[{"role": "user", "content": query}])
+    return response_cache[query]
+
 # Global connection and query
 singlestore_pool = None
 current_query = ""
 
-def get_db_connection():
+async def get_db_connection():
     """Get a connection from the pool"""
     global singlestore_pool
     try:
@@ -43,12 +80,12 @@ def get_db_connection():
         print(f"Error connecting to SingleStore: {e}")
         return None
 
-def search_movies() -> str:
+async def search_movies() -> str:
     """Core function to search movies in SingleStore"""
     global current_query
     
     try:
-        conn = get_db_connection()
+        conn = await get_db_connection()
         if not conn:
             return "Failed to connect to database"
 
@@ -79,20 +116,7 @@ def search_movies() -> str:
     except Exception as e:
         return f"Error getting recommendations: {e}"
 
-def direct_llm_response(query: str) -> str:
-    """Get response directly from LLM for non-SingleStore queries"""
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": query}
-            ]
-        )
-        return response.choices[0].message.content or "No response generated"
-    except Exception as e:
-        return f"Error getting LLM response: {e}"
-
-def is_singlestore_query(response) -> bool:
+async def is_singlestore_query(response) -> bool:
     """Check if the guardrails response indicates need for SingleStore"""
     try:
         # Print the full response for debugging
@@ -116,7 +140,7 @@ def is_singlestore_query(response) -> bool:
         print("Response type:", type(response))
         return False
 
-def main():
+async def main():
     global current_query
     
     # Initialize Swarm client
@@ -144,7 +168,7 @@ def main():
         try:
             print("\nSending query to Nemo Guardrails...")
             # First pass through guardrails
-            guardrails_response = rails.generate(messages=[{"role": "user", "content": user_query}])
+            guardrails_response = await get_guardrails_response(user_query)
             print("\n=== Nemo Guardrails Response Details ===")
             print("Full Response Object:", guardrails_response)
             print("Response Type:", type(guardrails_response))
@@ -165,21 +189,22 @@ def main():
                 response_content = guardrails_response.last_message
             
             # Check if query needs SingleStore
-            if is_singlestore_query(response_content):
+            if await is_singlestore_query(response_content):
                 # Update current query for the search function
                 current_query = user_query
                 
                 # Use SingleStore agent for movie recommendations
                 messages = [{"role": "user", "content": user_query}]
-                response = swarm_client.run(agent=agent, messages=messages)
+                response = await swarm_client.run(agent=agent, messages=messages)
                 print("Bot:", response.messages[-1]["content"])
             else:
                 # Use direct LLM response for general queries
-                response = direct_llm_response(user_query)
+                response = await direct_llm_response(user_query)
                 print("Bot:", response)
                 
         except Exception as e:
             print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

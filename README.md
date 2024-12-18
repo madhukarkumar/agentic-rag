@@ -1,106 +1,101 @@
-# SingleStore Swarm Agent
+# Movie Recommendation System with Chat Interface
 
-A simple Multi-agent RAG System (MARS) that combines SingleStore's vector database capabilities with OpenAI's language models to provide intelligent movie recommendations. The system uses NeMo Guardrails for query classification and input and output validation,and SingleStore agent for querying the database with a structured SQL query. You can extend it to also do exact keyword search and semantic search as part of the same agent.
+A web-based movie recommendation system that uses OpenAI's GPT, Nemo Guardrails, and SingleStore to provide personalized movie recommendations and engage in general conversation about movies.
 
-## Architecture
+## Features
 
-The application consists of several key components:
+- Interactive chat interface for movie recommendations
+- Natural language processing for understanding user queries
+- Integration with SingleStore for efficient movie data storage and retrieval
+- Real-time response with loading indicators
+- Support for both movie-specific and general queries
+- Caching system for improved performance
 
-1. **SingleStore Database**: Stores movie data and handles vector-based similarity searches and exact keyword search
-2. **OpenAI Integration**: Provides natural language understanding and generation
-3. **NeMo Guardrails**: Manages conversation flows and ensures appropriate responses
-4. **Swarm Agent System**: Coordinates between different components to handle user queries
+## Prerequisites
+
+- Python 3.8 or higher
+- SingleStore database instance
+- OpenAI API key
+- Git (for cloning the repository)
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-repo/singlestore-swarm-agent.git
+git clone <repository-url>
+cd singlestore-swarm-agent
 ```
 
-2. Install the dependencies:
+2. Create and activate a virtual environment:
+```bash
+# On macOS/Linux
+python -m venv venv
+source venv/bin/activate
+
+# On Windows
+python -m venv venv
+.\venv\Scripts\activate
+```
+
+3. Install the required packages:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables in a `.env` file:
-```bash
+4. Create a `.env` file in the project root with the following variables:
+```
 OPENAI_API_KEY=your_openai_api_key
 SINGLESTORE_HOST=your_singlestore_host
-SINGLESTORE_USER=your_singlestore_username
+SINGLESTORE_USER=your_singlestore_user
 SINGLESTORE_PASSWORD=your_singlestore_password
 SINGLESTORE_DATABASE=your_singlestore_database
 ```
 
-## How It Works
+## Running the Application
 
-The application follows this flow:
-
-1. **Query Processing**:
-   - User input is first processed through NeMo Guardrails
-   - Guardrails classify the query into different types (movie recommendations, general questions, etc.)
-
-2. **Query Routing**:
-   - Movie-related queries are directed to the SingleStore database
-   - General queries are handled directly by the OpenAI LLM
-   - Off-topic queries (politics, stock market) are filtered with appropriate responses
-
-3. **Movie Recommendations**:
-   - For movie queries, the system searches the SingleStore database
-   - Results are ranked by relevance
-   - Top 10 recommendations are returned with relevance scores
-
-## Usage
-
-Run the script:
+1. Make sure your virtual environment is activated:
 ```bash
-python singlestore-swarm.py
+source venv/bin/activate  # On macOS/Linux
+.\venv\Scripts\activate   # On Windows
 ```
 
-The system will start an interactive session where you can:
-- Ask for movie recommendations
-- Ask general questions
-- Type 'exit' to quit
+2. Start the FastAPI server:
+```bash
+uvicorn app:app --reload
+```
 
-## Extending the Application
+3. Open your web browser and navigate to:
+```
+http://localhost:8000
+```
 
-You can expand this application in several ways:
+## Project Structure
 
-1. **Database Enhancement**:
-   - Add more movie metadata (genres, actors, directors)
-   - Implement more sophisticated vector similarity searches
-   - Add user ratings and viewing history
+- `app.py`: FastAPI application and route handlers
+- `singlestore_swarm.py`: Core logic for movie recommendations and database interactions
+- `templates/`: HTML templates for the web interface
+- `nemo-configs/`: Configuration files for Nemo Guardrails
+- `requirements.txt`: Python package dependencies
 
-2. **Query Processing**:
-   - Extend NeMo Guardrails rules in `nemo-configs/rails.co`
-   - Add new conversation flows
-   - Implement more sophisticated query understanding
+## Code Flow
 
-3. **Response Generation**:
-   - Add personalization based on user preferences
-   - Implement more detailed movie descriptions
-   - Add multi-turn conversations about movies
+1. User sends a message through the web interface
+2. The message is processed by FastAPI and sent to the chat endpoint
+3. Nemo Guardrails analyzes the query to determine if it's movie-related
+4. If movie-related:
+   - Query is processed by SingleStore for movie recommendations
+   - Results are formatted and returned to the user
+5. If general query:
+   - Query is handled by OpenAI's GPT
+   - Response is cached for future use
+6. Response is sent back to the web interface
 
-4. **New Features**:
-   - Add collaborative filtering
-   - Implement user profiles
-   - Add movie clustering
-   - Integrate with external movie APIs
+## Troubleshooting
 
-To extend the application:
+- If you encounter database connection issues, verify your SingleStore credentials in the `.env` file
+- For OpenAI API errors, check if your API key is valid and has sufficient credits
+- If the web interface is not loading, ensure all static files are properly served
 
-1. **Adding New Guardrails**:
-   - Edit `nemo-configs/rails.co` to add new patterns and flows
-   - Update `config.yml` if needed for model configurations
+## Contributing
 
-2. **Database Modifications**:
-   - Add new columns to the movies table in SingleStore
-   - Update the search_movies() function in `singlestore-swarm.py`
-
-3. **Agent Enhancement**:
-   - Add new functions to the MovieRecommendationAgent
-   - Implement new swarm patterns for complex queries
-
-4. **API Integration**:
-   - Add new API clients in the main script
-   - Implement new data sources for enriched recommendations
+Feel free to submit issues and enhancement requests!
